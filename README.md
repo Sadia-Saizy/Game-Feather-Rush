@@ -7,8 +7,11 @@ This game was built with love for my daughter, who absolutely adores birds! Ever
 
 ---
 ![Feather Rush Gameplay] <img width="848" height="571" alt="Screenshot_12" src="https://github.com/user-attachments/assets/345f65c4-1c31-4e6d-ba5c-7c5f5f5473b9" />
+
 <img width="677" height="459" alt="Screenshot_10" src="https://github.com/user-attachments/assets/f744e12f-f58e-4e5a-8cb6-fcf9048ead81" />
+
 <img width="680" height="457" alt="Screenshot_09" src="https://github.com/user-attachments/assets/0acb939a-af18-4097-860a-1cd80916313a" />
+
 <img width="921" height="573" alt="Screenshot_11" src="https://github.com/user-attachments/assets/ba26d2e7-afd5-401f-a2b7-9c3bb916c18a" />
 
 
