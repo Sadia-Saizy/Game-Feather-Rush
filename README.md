@@ -6,7 +6,7 @@
 This game was built with love for my daughter, who absolutely adores birds! Every single character, concept, power-up, and game mechanic in *Feather Rush* came straight from her wonderful imagination. 
 
 ---
-![Feather Rush Gameplay] <img width="921" height="573" alt="Screenshot_11" src="https://github.com/user-attachments/assets/ba26d2e7-afd5-401f-a2b7-9c3bb916c18a" />
+<img width="921" height="573" alt="Screenshot_11" src="https://github.com/user-attachments/assets/ba26d2e7-afd5-401f-a2b7-9c3bb916c18a" />
 
 
 <img width="677" height="459" alt="Screenshot_10" src="https://github.com/user-attachments/assets/f744e12f-f58e-4e5a-8cb6-fcf9048ead81" />
