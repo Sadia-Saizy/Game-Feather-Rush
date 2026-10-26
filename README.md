@@ -6,6 +6,7 @@
 This game was built with love for my daughter, who absolutely adores birds! Every single character, concept, power-up, and game mechanic in *Feather Rush* came straight from her wonderful imagination. 
 
 ---
+![Feather Rush Gameplay](screenshot1.png)
 
 ## 🌟 Game Features
 
