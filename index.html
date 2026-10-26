@@ -1,0 +1,595 @@
+from IPython.display import HTML, display
+
+game_code = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Feather Rush - Sound Edition</title>
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 10px;
+        }
+        #game-container {
+            position: relative;
+            display: inline-block;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+        }
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #b5e2fa, #e1f5fe);
+        }
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(22, 33, 62, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        #startBtn, #jumpBtn {
+            background-color: #ff9800;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        #startBtn:hover, #jumpBtn:hover {
+            background-color: #f57c00;
+            transform: scale(1.05);
+        }
+        #jumpBtn {
+            background-color: #4CAF50;
+            margin-top: 10px;
+            font-size: 18px;
+            padding: 10px 24px;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+        #jumpBtn:hover {
+            background-color: #388E3C;
+        }
+        .ui-panel {
+            margin-top: 8px;
+            font-size: 15px;
+            background: #16213e;
+            padding: 8px 18px;
+            border-radius: 8px;
+            display: inline-block;
+            border: 2px solid #0f3460;
+        }
+        .controls {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #a0aec0;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Feather Rush: Peep, Chirp & Quack! 🦆🔊</h2>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="startScreen">
+            <h1 style="color: #FFD700; margin-bottom: 10px; font-size: 36px;">FEATHER RUSH</h1>
+            <p style="font-size: 15px; max-width: 500px; margin-bottom: 25px; line-height: 1.4; color: #e2e8f0;">
+                Help <strong>Quack</strong>, <strong>Peep</strong>, and <strong>Wisdom Bird</strong> race to <strong>Chirp</strong>! Collect Acorns for your Duck Wisdom stash!
+            </p>
+            <button id="startBtn" onclick="startGame()">START GAME ▶</button>
+        </div>
+    </div>
+
+    <br>
+    <button id="jumpBtn" onclick="triggerJump()">HIGH JUMP 🦘 / FLY</button>
+    <br>
+    <div class="ui-panel">
+        <strong>Stash:</strong> <span id="acornCount">0</span> |
+        <strong>High Score:</strong> <span id="highScoreCount">0</span> |
+        <strong>Power-Up:</strong> <span id="activePowerUp">None</span>
+    </div>
+    <div class="controls">
+        Controls: Click the <strong>HIGH JUMP</strong> button, or press <strong>SPACEBAR</strong> / <strong>UP ARROW</strong> | Press <strong>R</strong> to Restart
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('startScreen');
+
+let score = 0;
+let highScore = localStorage.getItem('featherRushHighScore') || 0;
+document.getElementById('highScoreCount').innerText = highScore;
+
+let gameSpeed = 8;
+let isGameOver = false;
+let gameStarted = false;
+let activePowerUpText = "None";
+let powerUpTimer = 0;
+
+// Web Audio API Sound Synthesizer
+let audioCtx = null;
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playJumpSound() {
+    initAudio();
+    if (!audioCtx) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+}
+
+function playAcornSound() {
+    initAudio();
+    if (!audioCtx) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function playGameOverSound() {
+    initAudio();
+    if (!audioCtx) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(80, audioCtx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.4);
+}
+
+let quack = {
+    x: 80,
+    y: 260,
+    width: 48,
+    height: 48,
+    dy: 0,
+    jumpPower: -16,
+    gravity: 0.5,
+    grounded: true,
+    sizeMultiplier: 1,
+    hasThreeWings: false,
+    hasGuard: false,
+    isSuper: false,
+    speedBoost: 1
+};
+
+let companions = [
+    { x: 40, y: 275, name: "Peep", offset: -50 },
+    { x: 5, y: 275, name: "Wisdom Bird", offset: -100 }
+];
+
+let obstacles = [];
+let acorns = [];
+let powerups = [];
+
+function triggerJump() {
+    if (!gameStarted) {
+        startGame();
+        return;
+    }
+    if (isGameOver) {
+        resetGame();
+        return;
+    }
+    if (quack.grounded) {
+        quack.dy = quack.hasThreeWings ? quack.jumpPower * 1.35 : quack.jumpPower;
+        quack.grounded = false;
+        playJumpSound();
+    }
+}
+
+window.addEventListener('keydown', e => {
+    if ((e.code === 'Space' || e.code === 'ArrowUp')) {
+        e.preventDefault();
+        triggerJump();
+    }
+    if (e.code === 'KeyR' && isGameOver) {
+        resetGame();
+    }
+});
+
+let frameCount = 0;
+
+function spawnObstacle() {
+    obstacles.push({ x: canvas.width, y: 290, width: 35, height: 35 });
+}
+
+function spawnAcorn() {
+    acorns.push({ x: canvas.width, y: Math.random() * 140 + 130, width: 26, height: 26 });
+}
+
+function spawnPowerup() {
+    const types = ['Super Seed', 'ThreeWings', 'Money Tape', 'Santa Bird', 'Guard Bird', 'Rich Box'];
+    const chosenType = types[Math.floor(Math.random() * types.length)];
+    powerups.push({ x: canvas.width, y: Math.random() * 140 + 100, width: 30, height: 30, type: chosenType });
+}
+
+function startGame() {
+    startScreen.style.display = 'none';
+    gameStarted = true;
+    resetGame();
+    loop();
+}
+
+function resetGame() {
+    score = 0;
+    gameSpeed = 8;
+    isGameOver = false;
+    obstacles = [];
+    acorns = [];
+    powerups = [];
+    quack.y = 260;
+    quack.sizeMultiplier = 1;
+    quack.hasThreeWings = false;
+    quack.hasGuard = false;
+    quack.speedBoost = 1;
+    activePowerUpText = "None";
+}
+
+function update() {
+    if (!gameStarted || isGameOver) return;
+
+    frameCount++;
+
+    if (frameCount % 85 === 0) spawnObstacle();
+    if (frameCount % 55 === 0) spawnAcorn();
+    if (frameCount % 320 === 0) spawnPowerup();
+
+    quack.dy += quack.gravity;
+    quack.y += quack.dy;
+
+    let floorY = 325 - (48 * quack.sizeMultiplier);
+    if (quack.y > floorY) {
+        quack.y = floorY;
+        quack.dy = 0;
+        quack.grounded = true;
+    }
+
+    companions.forEach(comp => {
+        comp.x = quack.x + comp.offset;
+        comp.y = quack.y + 15;
+    });
+
+    if (powerUpTimer > 0) {
+        powerUpTimer--;
+        if (powerUpTimer === 0) {
+            quack.sizeMultiplier = 1;
+            quack.hasThreeWings = false;
+            quack.hasGuard = false;
+            quack.speedBoost = 1;
+            quack.isSuper = false;
+            activePowerUpText = "None";
+        }
+    }
+
+    let currentSpeed = gameSpeed * quack.speedBoost;
+
+    for (let i = acorns.length - 1; i >= 0; i--) {
+        acorns[i].x -= currentSpeed;
+        if (
+            quack.x < acorns[i].x + acorns[i].width &&
+            quack.x + (48 * quack.sizeMultiplier) > acorns[i].x &&
+            quack.y < acorns[i].y + acorns[i].height &&
+            quack.y + (48 * quack.sizeMultiplier) > acorns[i].y
+        ) {
+            score += 10;
+            playAcornSound();
+            acorns.splice(i, 1);
+        } else if (acorns[i] && acorns[i].x < -30) {
+            acorns.splice(i, 1);
+        }
+    }
+
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        powerups[i].x -= currentSpeed;
+        if (
+            quack.x < powerups[i].x + powerups[i].width &&
+            quack.x + (48 * quack.sizeMultiplier) > powerups[i].x &&
+            quack.y < powerups[i].y + powerups[i].height &&
+            quack.y + (48 * quack.sizeMultiplier) > powerups[i].y
+        ) {
+            activatePowerUp(powerups[i].type);
+            powerups.splice(i, 1);
+        } else if (powerups[i] && powerups[i].x < -30) {
+            powerups.splice(i, 1);
+        }
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].x -= currentSpeed;
+
+        if (quack.hasGuard && obstacles[i].x < 280) {
+            obstacles[i].x -= 14;
+        }
+
+        if (
+            quack.x < obstacles[i].x + obstacles[i].width &&
+            quack.x + (48 * quack.sizeMultiplier) > obstacles[i].x &&
+            quack.y < obstacles[i].y + obstacles[i].height &&
+            quack.y + (48 * quack.sizeMultiplier) > obstacles[i].y
+        ) {
+            if (quack.isSuper || quack.hasGuard) {
+                obstacles.splice(i, 1);
+            } else {
+                isGameOver = true;
+                playGameOverSound();
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('featherRushHighScore', highScore);
+                    document.getElementById('highScoreCount').innerText = highScore;
+                }
+            }
+        } else if (obstacles[i] && obstacles[i].x < -40) {
+            obstacles.splice(i, 1);
+        }
+    }
+
+    document.getElementById('acornCount').innerText = score;
+    document.getElementById('activePowerUp').innerText = activePowerUpText;
+}
+
+function activatePowerUp(type) {
+    activePowerUpText = type;
+    powerUpTimer = 350;
+    if (type === 'Super Seed') {
+        quack.sizeMultiplier = 1.4;
+        quack.isSuper = true;
+    } else if (type === 'ThreeWings') {
+        quack.hasThreeWings = true;
+    } else if (type === 'Money Tape') {
+        if (obstacles.length > 0) obstacles.shift();
+    } else if (type === 'Santa Bird') {
+        obstacles = [];
+    } else if (type === 'Guard Bird') {
+        quack.hasGuard = true;
+    } else if (type === 'Rich Box') {
+        quack.speedBoost = 2.0;
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Ground
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(0, 325, canvas.width, 75);
+    ctx.fillStyle = '#388E3C';
+    ctx.fillRect(0, 325, canvas.width, 8);
+
+    // Goal: Chirp
+    ctx.fillStyle = '#FF3D00';
+    ctx.beginPath();
+    ctx.arc(740, 285, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+    ctx.fillStyle = '#FF9100';
+    ctx.beginPath();
+    ctx.moveTo(722, 283);
+    ctx.lineTo(700, 290);
+    ctx.lineTo(722, 297);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.arc(745, 278, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(746, 278, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText("Chirp 🐦", 715, 245);
+
+    // Acorns
+    acorns.forEach(a => {
+        let ax = a.x + 13;
+        let ay = a.y + 13;
+        ctx.fillStyle = '#A0522D';
+        ctx.beginPath();
+        ctx.ellipse(ax, ay + 4, 8, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+
+        ctx.fillStyle = '#5C4033';
+        ctx.beginPath();
+        ctx.arc(ax, ay - 3, 8, Math.PI, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = '#5C4033';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay - 11);
+        ctx.lineTo(ax, ay - 14);
+        ctx.stroke();
+    });
+
+    // Power-ups
+    powerups.forEach(p => {
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText("★", p.x + 9, p.y + 21);
+    });
+
+    // Obstacles
+    obstacles.forEach(obs => {
+        ctx.fillStyle = '#D32F2F';
+        ctx.beginPath();
+        ctx.arc(obs.x + 17, obs.y + 17, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px sans-serif';
+        ctx.fillText("😡", obs.x + 7, obs.y + 22);
+    });
+
+    // Peep
+    let peep = companions[0];
+    ctx.fillStyle = '#FFEB3B';
+    ctx.beginPath();
+    ctx.arc(peep.x + 18, peep.y + 18, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+    ctx.fillStyle = '#FF9100';
+    ctx.beginPath();
+    ctx.moveTo(peep.x + 32, peep.y + 16);
+    ctx.lineTo(peep.x + 42, peep.y + 20);
+    ctx.lineTo(peep.x + 32, peep.y + 24);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#E53935';
+    ctx.beginPath();
+    ctx.arc(peep.x + 18, peep.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.arc(peep.x + 24, peep.y + 14, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(peep.x + 25, peep.y + 14, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wisdom Bird
+    let wisdom = companions[1];
+    ctx.fillStyle = '#7E57C2';
+    ctx.beginPath();
+    ctx.arc(wisdom.x + 18, wisdom.y + 18, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+    ctx.fillStyle = '#FF9100';
+    ctx.beginPath();
+    ctx.moveTo(wisdom.x + 32, wisdom.y + 16);
+    ctx.lineTo(wisdom.x + 42, wisdom.y + 20);
+    ctx.lineTo(wisdom.x + 32, wisdom.y + 24);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(wisdom.x + 14, wisdom.y + 10, 10, 8);
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(wisdom.x + 19, wisdom.y + 14, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Quack
+    let qSize = 22 * quack.sizeMultiplier;
+    ctx.fillStyle = quack.hasGuard ? '#00BCD4' : '#7E57C2';
+    ctx.beginPath();
+    ctx.arc(quack.x + qSize, quack.y + qSize, qSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+
+    ctx.fillStyle = '#FF9100';
+    ctx.beginPath();
+    ctx.moveTo(quack.x + (qSize * 2) - 4, quack.y + qSize - 2);
+    ctx.lineTo(quack.x + (qSize * 2) + 10, quack.y + qSize + 3);
+    ctx.lineTo(quack.x + (qSize * 2) - 4, quack.y + qSize + 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.arc(quack.x + qSize + 6, quack.y + qSize - 4, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(quack.x + qSize + 8, quack.y + qSize - 4, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(quack.x + qSize - 12, quack.y - 6, 24, 10);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(quack.x + qSize - 12, quack.y - 6, 24, 10);
+
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText("Quack 🦆", quack.x - 2, quack.y - 12);
+
+    // Game Over
+    if (isGameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '28px sans-serif';
+        ctx.fillText("Game Over!", 320, 170);
+        ctx.font = '16px sans-serif';
+        ctx.fillText("Press 'R' or Click Button to Try Again", 240, 210);
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    if (gameStarted) {
+        requestAnimationFrame(loop);
+    }
+}
+</script>
+
+</body>
+</html>
+"""
+
+display(HTML(game_code))
